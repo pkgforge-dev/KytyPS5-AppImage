@@ -6,24 +6,38 @@ ARCH=$(uname -m)
 
 echo "Installing package dependencies..."
 echo "---------------------------------------------------------------"
-# pacman -Syu --noconfirm PACKAGESHERE
+pacman -Syu --noconfirm \
+    clang             \
+    cpuinfo           \
+    fmt               \
+    kvantum           \
+    lld               \
+    lxqt-qtplugin     \
+    nlohmann-json     \
+    qt6-imageformats  \
+    qt6-wayland       \
+    qt6-webengine     \
+    qt6ct             \
+    sdl3              \
+    spdlog            \
+    stb               \
+    vulkan-headers    \
+    vulkan-icd-loader \
+    zydis
 
 echo "Installing debloated packages..."
 echo "---------------------------------------------------------------"
-get-debloated-pkgs --add-common --prefer-nano
+get-debloated-pkgs --add-common --prefer-nano libdecor-mini
 
-# Comment this out if you need an AUR package
-#make-aur-package PACKAGENAME
+echo "Getting app..."
+echo "---------------------------------------------------------------"
+LINK=$(wget https://api.github.com/repos/KytyPS5/KytyPS5/releases/latest -O - \
+      | sed 's/[()",{} ]/\n/g' | grep -o -m 1 "https.*Linux-x86_64.tar.gz")
+echo "$LINK" | awk -F'/' '{v=$(NF-1); sub(/^v/, "", v); sub(/^KytyPS5-/, "", v); print v; exit}' > ~/version
+if ! wget --retry-connrefused --tries=30 "$LINK" -O /tmp/app.tar.gz 2>/tmp/download.log; then
+	cat /tmp/download.log
+	exit 1
+fi
 
-# If the application needs to be manually built that has to be done down here
-
-# if you also have to make nightly releases check for DEVEL_RELEASE = 1
-#
-# if [ "${DEVEL_RELEASE-}" = 1 ]; then
-# 	nightly build steps
-# else
-# 	regular build steps
-# fi
-
-# Note that when building manually, you want to output the version of the
-# application to a ~/version file and remove VERSION from make-appimage.sh
+mkdir -p ./AppDir/bin
+tar -xzf /tmp/app.tar.gz -C ./AppDir/bin ./launcher ./kyty_emulator
