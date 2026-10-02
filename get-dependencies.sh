@@ -7,32 +7,20 @@ ARCH=$(uname -m)
 echo "Installing package dependencies..."
 echo "---------------------------------------------------------------"
 pacman -Syu --noconfirm \
-    alsa-lib          \
     clang             \
     cmake             \
-    dbus              \
     glslang           \
     kvantum           \
-    libpulse          \
-    libx11            \
     libxcursor        \
-    libxext           \
-    libxfixes         \
-    libxi             \
     libxkbcommon      \
-    libxrandr         \
-    libxss            \
-    libxtst           \
     lld               \
     lxqt-qtplugin     \
     ninja             \
-    pkgconf           \
     qt6ct             \
     qt6-imageformats  \
     qt6-wayland       \
     vulkan-headers    \
     vulkan-icd-loader \
-    wayland           \
     wayland-protocols
 
 echo "Installing debloated packages..."
