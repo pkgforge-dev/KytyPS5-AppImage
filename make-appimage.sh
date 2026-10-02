@@ -11,7 +11,7 @@ export ICON=https://github.com/KytyPS5.png
 export DEPLOY_VULKAN=1
 
 # Deploy dependencies
-quick-sharun ./AppDir/bin/launcher ./AppDir/bin/kyty_emulator
+quick-sharun /usr/lib/kytyps5/launcher /usr/lib/kytyps5/kyty_emulator
 
 # Turn AppDir into AppImage
 quick-sharun --make-appimage

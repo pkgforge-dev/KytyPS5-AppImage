@@ -1,0 +1,190 @@
+# Use the XDG base directories for the launcher config, the compatibility
+# database and cheat patches instead of writing next to the binaries, and run
+# the emulator with the XDG data directory as its working directory so its
+# save data does not land in a read-only AppImage mount. Adds
+# src/launcher/include/appPaths.h.
+#
+diff --git a/src/launcher/include/appPaths.h b/src/launcher/include/appPaths.h
+new file mode 100644
+index 00000000..282614c9
+--- /dev/null
++++ b/src/launcher/include/appPaths.h
+@@ -0,0 +1,26 @@
++#ifndef LAUNCHER_INCLUDE_APP_PATHS_H_
++#define LAUNCHER_INCLUDE_APP_PATHS_H_
++
++#include <QDir>
++#include <QStandardPaths>
++#include <QString>
++
++// Writable locations that follow the XDG Base Directory Specification.
++// https://specifications.freedesktop.org/basedir-spec/latest/
++namespace AppPaths {
++
++static constexpr char APP_DIR_NAME[] = "KytyPS5";
++
++inline QString DataDir() {
++	const auto base = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
++	return QDir(base).filePath(QString::fromLatin1(APP_DIR_NAME));
++}
++
++inline QString EnsureDir(const QString& dir) {
++	QDir().mkpath(dir);
++	return dir;
++}
++
++} // namespace AppPaths
++
++#endif
+diff --git a/src/launcher/src/cheatFile.cpp b/src/launcher/src/cheatFile.cpp
+index 60ccb911..56948e28 100644
+--- a/src/launcher/src/cheatFile.cpp
++++ b/src/launcher/src/cheatFile.cpp
+@@ -1,5 +1,7 @@
+ #include "cheatFile.h"
+ 
++#include "appPaths.h"
++
+ #include <QCoreApplication>
+ #include <QDir>
+ #include <QFile>
+@@ -121,7 +123,7 @@ QString PlanPath(const QString& title_id) {
+ 	if (!IsSupportedTitleId(title_id)) {
+ 		return {};
+ 	}
+-	return QDir(QCoreApplication::applicationDirPath())
++	return QDir(AppPaths::EnsureDir(AppPaths::DataDir()))
+ 	    .filePath(QStringLiteral("_Patches/%1.json").arg(title_id.trimmed().toUpper()));
+ }
+ 
+diff --git a/src/launcher/src/compatibilityDatabase.cpp b/src/launcher/src/compatibilityDatabase.cpp
+index 9bec38bb..d6a1e226 100644
+--- a/src/launcher/src/compatibilityDatabase.cpp
++++ b/src/launcher/src/compatibilityDatabase.cpp
+@@ -1,5 +1,7 @@
+ #include "compatibilityDatabase.h"
+ 
++#include "appPaths.h"
++
+ #include <QDebug>
+ #include <QDir>
+ #include <QEventLoop>
+@@ -132,7 +134,7 @@ const CompatibilityEntry* CompatibilityDatabase::Find(const QString& title_id) c
+ 
+ void CompatibilityDatabase::Load() {
+ 	if (m_local) {
+-		QFile file(QDir(".").absoluteFilePath(FILE_NAME));
++		QFile file(QDir(AppPaths::EnsureDir(AppPaths::DataDir())).filePath(FILE_NAME));
+ 		if (!file.exists()) {
+ 			emit Updated();
+ 			return;
+@@ -191,7 +193,7 @@ void CompatibilityDatabase::Save() const {
+ 		                         {QStringLiteral("comment"), it.value().comment}});
+ 	}
+ 
+-	QSaveFile  file(QDir(".").absoluteFilePath(FILE_NAME));
++	QSaveFile  file(QDir(AppPaths::EnsureDir(AppPaths::DataDir())).filePath(FILE_NAME));
+ 	const auto data = QJsonDocument(root).toJson(QJsonDocument::Indented);
+ 	if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit()) {
+ 		qWarning() << "Could not save compatibility database:" << file.errorString();
+diff --git a/src/launcher/src/configurationListWidget.cpp b/src/launcher/src/configurationListWidget.cpp
+index bd3af63d..b8656a40 100644
+--- a/src/launcher/src/configurationListWidget.cpp
++++ b/src/launcher/src/configurationListWidget.cpp
+@@ -1,6 +1,7 @@
+ #include "configurationListWidget.h"
+ 
+ #include "additionalContentDialog.h"
++#include "appPaths.h"
+ #include "cheatFile.h"
+ #include "common/archive.h"
+ #include "common/trophies.h"
+@@ -74,7 +75,6 @@
+ 
+ #include "ui_configuration_list_widget.h"
+ 
+-constexpr char CONF_FILE_NAME[]    = "Kyty.ini";
+ constexpr char CONF_ORG_NAME[]     = "Kyty";
+ constexpr char CONF_APP_NAME[]     = "Kyty";
+ constexpr char CONF_SECTION_NAME[] = "GameConfigurations";
+@@ -174,7 +174,8 @@ static QStringList GetSaveDataDirs(const Configuration& info) {
+ 	}
+ 
+ 	QSet<QString> seen;
+-	QStringList   roots({QDir::currentPath(), QCoreApplication::applicationDirPath()});
++	QStringList   roots(
++	    {QDir::currentPath(), QCoreApplication::applicationDirPath(), AppPaths::DataDir()});
+ 
+ 	QDir current_parent(QDir::currentPath());
+ 	if (current_parent.cdUp()) {
+@@ -328,19 +329,10 @@ void ConfigurationListWidget::UpdateToolbarIcons() {
+ }
+ 
+ void ConfigurationListWidget::WriteSettings() {
+-	QFile                      file = QFile(QDir(".").absoluteFilePath(CONF_FILE_NAME));
+-	std::unique_ptr<QSettings> s;
+-	if (file.exists()) {
+-		s = std::make_unique<QSettings>(CONF_FILE_NAME, QSettings::IniFormat);
+-	} else {
+-#ifdef __linux__
+-		s = std::make_unique<QSettings>(QSettings::IniFormat, QSettings::UserScope, CONF_ORG_NAME,
+-		                                CONF_APP_NAME);
+-#else
+-		s = std::make_unique<QSettings>(QSettings::IniFormat, QSettings::SystemScope, CONF_ORG_NAME,
+-		                                CONF_APP_NAME);
+-#endif
+-	}
++	// Always use the XDG config directory instead of writing next to the
++	// binary. On Linux QSettings resolves this to $XDG_CONFIG_HOME.
++	std::unique_ptr<QSettings> s = std::make_unique<QSettings>(
++	    QSettings::IniFormat, QSettings::UserScope, CONF_ORG_NAME, CONF_APP_NAME);
+ 
+ 	MainDialog::WriteSettings(*s);
+ 	ConfigurationEditDialog::WriteSettings(*s);
+@@ -378,19 +370,10 @@ void ConfigurationListWidget::WriteSettings() {
+ }
+ 
+ void ConfigurationListWidget::ReadSettings() {
+-	QFile                      file = QFile(QDir(".").absoluteFilePath(CONF_FILE_NAME));
+-	std::unique_ptr<QSettings> s;
+-	if (file.exists()) {
+-		s = std::make_unique<QSettings>(CONF_FILE_NAME, QSettings::IniFormat);
+-	} else {
+-#ifdef __linux__
+-		s = std::make_unique<QSettings>(QSettings::IniFormat, QSettings::UserScope, CONF_ORG_NAME,
+-		                                CONF_APP_NAME);
+-#else
+-		s = std::make_unique<QSettings>(QSettings::IniFormat, QSettings::SystemScope, CONF_ORG_NAME,
+-		                                CONF_APP_NAME);
+-#endif
+-	}
++	// Always use the XDG config directory instead of writing next to the
++	// binary. On Linux QSettings resolves this to $XDG_CONFIG_HOME.
++	std::unique_ptr<QSettings> s = std::make_unique<QSettings>(
++	    QSettings::IniFormat, QSettings::UserScope, CONF_ORG_NAME, CONF_APP_NAME);
+ 
+ 	m_settings_file = s->fileName();
+ 
+diff --git a/src/launcher/src/mainDialog.cpp b/src/launcher/src/mainDialog.cpp
+index 7430b31e..b95649aa 100644
+--- a/src/launcher/src/mainDialog.cpp
++++ b/src/launcher/src/mainDialog.cpp
+@@ -1,5 +1,6 @@
+ #include "mainDialog.h"
+ 
++#include "appPaths.h"
+ #include "cheatFile.h"
+ #include "configuration.h"
+ #include "configurationItem.h"
+@@ -450,7 +451,10 @@ void MainDialog::RunInterpreter(QProcess* process, const Configuration& info, bo
+ 	process->setNativeArguments(
+ 	    CmdCommand(QDir::toNativeSeparators(interpreter), args, close_terminal));
+ #endif
+-	process->setWorkingDirectory(QFileInfo(interpreter).absolutePath());
++	// The emulator writes its save data, shader cache and logs relative to
++	// the working directory; the AppImage mount point is read-only, so point
++	// that at the XDG data directory instead.
++	process->setWorkingDirectory(AppPaths::EnsureDir(AppPaths::DataDir()));
+ #if defined(_WIN32)
+ 	process->setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments* args) {
+ 		args->flags |= static_cast<uint32_t>(CREATE_NEW_CONSOLE);
