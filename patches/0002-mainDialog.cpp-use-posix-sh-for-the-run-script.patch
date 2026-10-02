@@ -1,0 +1,84 @@
+# Run the generated emulator launcher through POSIX sh instead of bash, so
+# the AppImage does not depend on a bash binary from the host.
+#
+diff --git a/src/launcher/src/mainDialog.cpp b/src/launcher/src/mainDialog.cpp
+index 4a696c2..291707b 100644
+--- a/src/launcher/src/mainDialog.cpp
++++ b/src/launcher/src/mainDialog.cpp
+@@ -53,7 +53,7 @@ constexpr char EMULATOR_EXE[] = "kyty_emulator";
+ #if defined(_WIN32)
+ constexpr char CMD_EXE[] = "cmd.exe";
+ #elif defined(__linux__)
+-constexpr char KYTY_BASH_FILE[] = "kyty_run.sh";
++constexpr char KYTY_RUN_SCRIPT[] = "kyty_run.sh";
+ #endif
+ #if defined(_WIN32)
+ constexpr DWORD CMD_X_CHARS = 175;
+@@ -288,25 +288,25 @@ static QStringList CreateEmulatorArgs(const Configuration& info) {
+ }
+ 
+ #ifdef __linux__
+-static QString BashQuote(QString value) {
++static QString ShellQuote(QString value) {
+ 	value.replace('\'', "'\\''");
+ 	return QStringLiteral("'") + value + QStringLiteral("'");
+ }
+ 
+-static bool CreateBashScript(const QString& interpreter, const QStringList& args,
+-                             const QString& file_name) {
++static bool CreateShellScript(const QString& interpreter, const QStringList& args,
++                              const QString& file_name) {
+ 	QFile file(file_name);
+ 	if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+ 		QTextStream s(&file);
+ 
+-		s << "#!/bin/bash\n";
+-		s << BashQuote(interpreter);
++		s << "#!/bin/sh\n";
++		s << ShellQuote(interpreter);
+ 		for (const auto& arg: args) {
+-			s << " " << BashQuote(arg);
++			s << " " << ShellQuote(arg);
+ 		}
+ 		s << "\n";
+-		s << "echo Press any key...\n";
+-		s << "read -n1\n";
++		s << "echo Press Enter to close...\n";
++		s << "read -r _\n";
+ 
+ 		file.close();
+ 
+@@ -404,10 +404,10 @@ void MainDialog::RunInterpreter(QProcess* process, const Configuration& info) {
+ 	}
+ 
+ #ifdef __linux__
+-	auto bash_file_name =
+-	    QDir(AppPaths::EnsureDir(AppPaths::RuntimeDir())).filePath(KYTY_BASH_FILE);
+-	if (!CreateBashScript(interpreter, args, bash_file_name)) {
+-		QMessageBox::critical(this, tr("Error"), tr("Can't create file:\n") + bash_file_name);
++	auto script_file_name =
++	    QDir(AppPaths::EnsureDir(AppPaths::RuntimeDir())).filePath(KYTY_RUN_SCRIPT);
++	if (!CreateShellScript(interpreter, args, script_file_name)) {
++		QMessageBox::critical(this, tr("Error"), tr("Can't create file:\n") + script_file_name);
+ 		QApplication::quit();
+ 		return;
+ 	}
+@@ -415,14 +415,14 @@ void MainDialog::RunInterpreter(QProcess* process, const Configuration& info) {
+ 	{
+ 		QString     terminal;
+ 		QStringList terminal_prefix;
+-		// Pass the script as a file argument (not bash -c) so paths with spaces work.
++		// Pass the script as a file argument (not sh -c) so paths with spaces work.
+ 		if (FindTerminal(&terminal, &terminal_prefix)) {
+ 			process->setProgram(terminal);
+-			process->setArguments(terminal_prefix + QStringList {"bash", bash_file_name});
++			process->setArguments(terminal_prefix + QStringList {"sh", script_file_name});
+ 		} else {
+ 			// Run without a terminal as a fallback.
+-			process->setProgram(QStringLiteral("bash"));
+-			process->setArguments({bash_file_name});
++			process->setProgram(QStringLiteral("sh"));
++			process->setArguments({script_file_name});
+ 		}
+ 	}
+ #elif defined(_WIN32)
