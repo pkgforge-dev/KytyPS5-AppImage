@@ -1,0 +1,34 @@
+# Run the emulator from the terminal through POSIX sh instead of bash, so the
+# AppImage does not depend on a bash binary from the host.
+#
+diff --git a/src/launcher/src/mainDialog.cpp b/src/launcher/src/mainDialog.cpp
+index b95649aa..7db335a2 100644
+--- a/src/launcher/src/mainDialog.cpp
++++ b/src/launcher/src/mainDialog.cpp
+@@ -339,12 +339,12 @@ static QStringList CreateEmulatorArgs(const Configuration& info) {
+ }
+ 
+ #ifdef __linux__
+-// Runs the command in bash, then waits for a key (with close_on_clean_exit, only after an error).
+-// The command goes in as positional parameters ("$@"), so it needs no quoting.
+-static QStringList BashCommand(const QString& interpreter, const QStringList& args,
+-                               bool close_on_clean_exit) {
++// Runs the command in a POSIX shell, then waits for Enter (with close_on_clean_exit, only after an
++// error). The command goes in as positional parameters ("$@"), so it needs no quoting.
++static QStringList ShellCommand(const QString& interpreter, const QStringList& args,
++                                bool close_on_clean_exit) {
+ 	const QString run = close_on_clean_exit ? "\"$@\" && exit" : "\"$@\"";
+-	return QStringList {"bash", "-c", run + "; echo Press any key...; read -n1", "kyty",
++	return QStringList {"sh", "-c", run + "; echo Press Enter to close...; read -r _", "kyty",
+ 	                    interpreter} +
+ 	       args;
+ }
+@@ -442,7 +442,7 @@ void MainDialog::RunInterpreter(QProcess* process, const Configuration& info, bo
+ 	QStringList terminal_prefix;
+ 	if (FindTerminal(&terminal, &terminal_prefix)) {
+ 		process->setProgram(terminal);
+-		process->setArguments(terminal_prefix + BashCommand(interpreter, args, close_terminal));
++		process->setArguments(terminal_prefix + ShellCommand(interpreter, args, close_terminal));
+ 	}
+ #elif defined(_WIN32)
+ 	// Use nativeArguments so Qt does not re-quote the /K command string.
