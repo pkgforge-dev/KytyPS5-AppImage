@@ -1,0 +1,36 @@
+# Make the launcher Qt runtime/plugin bundling opt-in so packaging that
+# deploys Qt itself (the AppImage) can link the system Qt instead of a
+# copy under the install prefix.
+#
+diff --git a/src/launcher/CMakeLists.txt b/src/launcher/CMakeLists.txt
+index 637307f..62eb308 100644
+--- a/src/launcher/CMakeLists.txt
++++ b/src/launcher/CMakeLists.txt
+@@ -1,6 +1,8 @@
+ 
+ find_package(Qt6 COMPONENTS Concurrent Network Widgets REQUIRED)
+ 
++option(KYTY_BUNDLE_QT_RUNTIME "Bundle the Qt runtime and plugins into the install prefix" ON)
++
+ set(CMAKE_AUTOUIC_SEARCH_PATHS forms)
+ set(CMAKE_INCLUDE_CURRENT_DIR ON)
+ 
+@@ -118,7 +120,7 @@ if(WIN32)
+ 				--no-translations
+     		)
+     ")
+-elseif(LINUX)
++elseif(LINUX AND KYTY_BUNDLE_QT_RUNTIME)
+ 	# Bundle the Qt runtime and plugins.
+ 	set_target_properties(launcher PROPERTIES
+ 		INSTALL_RPATH "$ORIGIN/lib"
+@@ -174,6 +176,9 @@ elseif(LINUX)
+ 	else()
+ 		message(WARNING "Qt plugin directory not found; the installed launcher will need a system Qt")
+ 	endif()
++elseif(LINUX)
++	set_target_properties(launcher PROPERTIES
++		LINK_FLAGS "${KYTY_LD_OPTIONS} -Wl,--disable-new-dtags")
+ endif()
+ 
+ 
