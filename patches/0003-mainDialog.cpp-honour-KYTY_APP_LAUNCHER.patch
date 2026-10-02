@@ -1,0 +1,31 @@
+# Let KYTY_APP_LAUNCHER replace the emulator path used by the generated run
+# script. The package sets it to $APPIMAGE so the script re-invokes the
+# AppImage instead of embedding the random AppImage mount point.
+#
+diff --git a/src/launcher/src/mainDialog.cpp b/src/launcher/src/mainDialog.cpp
+index 291707b..f9691a3 100644
+--- a/src/launcher/src/mainDialog.cpp
++++ b/src/launcher/src/mainDialog.cpp
+@@ -404,9 +404,21 @@ void MainDialog::RunInterpreter(QProcess* process, const Configuration& info) {
+ 	}
+ 
+ #ifdef __linux__
++	// An AppImage mounts the emulator at a random mount point, so a script that
++	// embeds that path breaks as soon as the mount goes away. KYTY_APP_LAUNCHER
++	// lets the package point at $APPIMAGE instead; the emulator is then picked
++	// by name through sharun's AppRun dispatch.
++	auto       program     = interpreter;
++	auto       script_args = args;
++	const auto app_launcher = qEnvironmentVariable("KYTY_APP_LAUNCHER");
++	if (!app_launcher.isEmpty()) {
++		program = app_launcher;
++		script_args.prepend(QString::fromLatin1(EMULATOR_EXE));
++	}
++
+ 	auto script_file_name =
+ 	    QDir(AppPaths::EnsureDir(AppPaths::RuntimeDir())).filePath(KYTY_RUN_SCRIPT);
+-	if (!CreateShellScript(interpreter, args, script_file_name)) {
++	if (!CreateShellScript(program, script_args, script_file_name)) {
+ 		QMessageBox::critical(this, tr("Error"), tr("Can't create file:\n") + script_file_name);
+ 		QApplication::quit();
+ 		return;
