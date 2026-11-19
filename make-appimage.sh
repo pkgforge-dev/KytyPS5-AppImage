@@ -13,9 +13,6 @@ export DEPLOY_VULKAN=1
 # Deploy dependencies
 quick-sharun /usr/lib/kytyps5/launcher /usr/lib/kytyps5/kyty_emulator
 
-# The run script re-invokes the AppImage so it does not embed the mount path
-echo 'KYTY_APP_LAUNCHER=${APPIMAGE}' >> ./AppDir/.env
-
 # Turn AppDir into AppImage
 quick-sharun --make-appimage
 
